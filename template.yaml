@@ -8,7 +8,7 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 30
+    Timeout: 300
     MemorySize: 1024
 
 Resources:
@@ -35,11 +35,11 @@ Outputs:
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
   DeejaiApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
+    Description: "API Gateway endpoint URL for Prod stage for Deej-A.I. playlist function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/playlist/"
+  DeejaiFunction:
+    Description: "Deej-A.I. playlist Lambda Function ARN"
     Value: !GetAtt DeejaiFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: "Implicit IAM Role created for Hello World function"
+  DeejaiFunctionIamRole:
+    Description: "Implicit IAM Role created for Deej-A.I. playlist function"
     Value: !GetAtt DeejaiFunctionRole.Arn

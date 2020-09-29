@@ -192,7 +192,7 @@ def lambda_handler(event, context):
     creativity = event.get('creativity', 0.5)
     noise = event.get('noise', 0)
     lookback = event.get('lookback', 3)
-    track_url = event.get('track_url', 'https://deej-ai.online/p_scdn_co-9d731886399ba8411787d98b56f93a21c216bae6.wav')
+    track_url = event.get('track_url', 'https://deej-ai.online/test.wav')
 
     s3 = boto3.resource('s3')
     mp3tovecs, track_indices, track_ids, tracks = pickle.loads(s3.Bucket('deej-ai.online').Object('stuff.p').get()['Body'].read())
