@@ -1,0 +1,5 @@
+requests
+audioread
+numpy
+resampy
+scipy
