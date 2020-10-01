@@ -24,11 +24,26 @@ Resources:
           Properties:
             Path: /playlist
             Method: get
+        BucketEvent:
+          Type: S3
+          Properties:
+            Bucket: !Ref AudioBucket
+            Events: 's3:ObjectCreated:*'
       Policies:
-        - S3CrudPolicy:
-            BucketName: !Sub "deej-ai.online"
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+              - 's3:GetObject'
+              - 's3:DeleteObject'
+              Resource: 'arn:aws:s3:::*'
     Metadata:
       BuildMethod: makefile
+  
+  AudioBucket:
+    Type: 'AWS::S3::Bucket'
+#    Properties:
+#    - BucketName: 'deej-ai.online-audio'
             
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

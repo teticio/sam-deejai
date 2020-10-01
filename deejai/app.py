@@ -1,7 +1,15 @@
+# TODO
+# name audio bucket or get created name
+# limit audio to be between 5 and 30 seconds
+# add spotify token to object name
+# create spotify playlist
+# gui
+
 import os
 import uuid
 import json
 import boto3
+import urllib
 import pickle
 import shutil
 import requests
@@ -14,7 +22,12 @@ if __name__ == '__main__':
 else:
     import tflite_runtime.interpreter as tflite
 
+size = 20
+creativity = 0.5
+noise = 0
+lookback = 3
 
+        
 def most_similar(mp3tovecs,
                  weights,
                  positive=[],
@@ -109,7 +122,7 @@ def make_playlist(mp3tovecs, weights, playlist, \
     return playlist_indices, playlist_tracks
 
 
-def get_similar_vec(track_url, interpreter):
+def get_similar_vec(s3, bucket, key, interpreter):
     playlist_id = str(uuid.uuid4())
     sr = 22050
     n_fft = 2048
@@ -117,14 +130,8 @@ def get_similar_vec(track_url, interpreter):
     n_mels = interpreter.get_input_details()[0]['shape'][1]
     slice_size = interpreter.get_input_details()[0]['shape'][2]
 
-    r = requests.get(track_url, allow_redirects=True)
-    if r.status_code != 200:
-        return []
-    with open(f'/tmp/{playlist_id}.wav',
-              'wb') as file:  # this is really annoying!
-        shutil.copyfileobj(BytesIO(r.content), file, length=131072)
+    s3.Bucket(bucket).download_file(key, f'/tmp/{playlist_id}.wav')
     y, sr = librosalite.load(f'/tmp/{playlist_id}.wav', mono=True)
-    # cannot safely process two calls from same client
     os.remove(f'/tmp/{playlist_id}.wav')
     S = librosalite.melspectrogram(y=y,
                                    sr=sr,
@@ -132,7 +139,6 @@ def get_similar_vec(track_url, interpreter):
                                    hop_length=hop_length,
                                    n_mels=n_mels,
                                    fmax=sr / 2)
-    # hack because Spotify samples are a shade under 30s
     x = np.ndarray(shape=(1, n_mels, slice_size, 1),
                    dtype=np.float32)
     vecs = np.zeros(shape=(1, 100), dtype=np.float32)
@@ -146,7 +152,6 @@ def get_similar_vec(track_url, interpreter):
         interpreter.set_tensor(interpreter.get_input_details()[0]['index'], x)
         interpreter.invoke()
         vecs += interpreter.get_tensor(interpreter.get_output_details()[0]['index'])
-    # hack because Spotify samples are a shade under 30s
     log_S = librosalite.power_to_db(S[:, -slice_size:], ref=np.max)
     if np.max(log_S) - np.min(log_S) != 0:
         log_S = (log_S - np.min(log_S)) / (np.max(log_S) - np.min(log_S))
@@ -158,58 +163,34 @@ def get_similar_vec(track_url, interpreter):
 
 
 def lambda_handler(event, context):
-    """Sample pure Lambda function
-
-    Parameters
-    ----------
-    event: dict, required
-        API Gateway Lambda Proxy Input Format
-
-        Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
-
-    context: object, required
-        Lambda Context runtime methods and attributes
-
-        Context doc: https://docs.aws.amazon.com/lambda/latest/dg/python-context-object.html
-
-    Returns
-    ------
-    API Gateway Lambda Proxy Output Format: dict
-
-        Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-    """
-
-    # try:
-    #     ip = requests.get("http://checkip.amazonaws.com/")
-    # except requests.RequestException as e:
-    #     # Send some context about this error to Lambda Logs
-    #     print(e)
-
-    #     raise e
-
-    input_tracks = event.get('input_tracks', [])
-    size = event.get('size', 10)
-    creativity = event.get('creativity', 0.5)
-    noise = event.get('noise', 0)
-    lookback = event.get('lookback', 3)
-    track_url = event.get('track_url', 'https://deej-ai.online/test.wav')
-
     s3 = boto3.resource('s3')
-    mp3tovecs, track_indices, track_ids, tracks = pickle.loads(s3.Bucket('deej-ai.online').Object('stuff.p').get()['Body'].read())
-    interpreter = tflite.Interpreter(model_content=s3.Bucket('deej-ai.online').Object('speccy_model.tflite').get()['Body'].read())
-    interpreter.allocate_tensors()
-    vec = get_similar_vec(track_url, interpreter)
-    input_tracks = [track_ids[most_similar_by_vec(mp3tovecs[:, np.newaxis, 0, :], [1], [vec])[0]]]
-    playlist_indices, playlist_tracks = make_playlist(mp3tovecs,
-                                                      [creativity, 1 - creativity],
-                                                      input_tracks,
-                                                      tracks,
-                                                      track_ids,
-                                                      track_indices,
-                                                      size=size,
-                                                      lookback=lookback,
-                                                      noise=noise)
-    response = [[track_ids[_] for _ in playlist_indices], playlist_tracks]
+    bucket = event['Records'][0]['s3']['bucket']['name']
+    key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'])
+    response = [[], []]
+    
+    try:
+        mp3tovecs, track_indices, track_ids, tracks = pickle.loads(s3.Bucket('deej-ai.online').Object('stuff.p').get()['Body'].read())
+        interpreter = tflite.Interpreter(model_content=s3.Bucket('deej-ai.online').Object('speccy_model.tflite').get()['Body'].read())
+        interpreter.allocate_tensors()
+        vec = get_similar_vec(s3, bucket, key, interpreter)
+        input_tracks = [track_ids[most_similar_by_vec(mp3tovecs[:, np.newaxis, 0, :], [1], [vec])[0]]]
+        playlist_indices, playlist_tracks = make_playlist(mp3tovecs,
+                                                          [creativity, 1 - creativity],
+                                                          input_tracks,
+                                                          tracks,
+                                                          track_ids,
+                                                          track_indices,
+                                                          size=size,
+                                                          lookback=lookback,
+                                                          noise=noise)
+        response = [[track_ids[_] for _ in playlist_indices], playlist_tracks]
+        print(response)
+        
+    except Exception as e:
+        print(e)
+        
+    finally:
+        s3.Object(bucket, key).delete()
     
     return {
         "statusCode": 200,
