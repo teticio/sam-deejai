@@ -3,3 +3,4 @@ audioread
 numpy
 resampy
 scipy
+spotipy

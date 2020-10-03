@@ -35,6 +35,7 @@ Resources:
             - Effect: Allow
               Action:
               - 's3:GetObject'
+              - 's3:PutObject'
               - 's3:DeleteObject'
               Resource: 'arn:aws:s3:::*'
     Metadata:
@@ -42,9 +43,7 @@ Resources:
   
   AudioBucket:
     Type: 'AWS::S3::Bucket'
-#    Properties:
-#    - BucketName: 'deej-ai.online-audio'
-            
+
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM

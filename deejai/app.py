@@ -12,10 +12,12 @@ import boto3
 import urllib
 import pickle
 import shutil
+import spotipy
 import requests
 import numpy as np
 import librosalite
 from io import BytesIO
+import spotipy.util as util
 
 if __name__ == '__main__':
     import tensorflow as tf
@@ -27,7 +29,66 @@ creativity = 0.5
 noise = 0
 lookback = 3
 
-        
+
+def add_tracks_to_playlist(sp, username, playlist_id, track_ids, replace=False):
+    if sp is not None and username is not None and playlist_id is not None:
+        try:
+            if replace:
+                sp.user_playlist_replace_tracks(username, playlist_id, track_ids)
+            else:
+                sp.user_playlist_add_tracks(username, playlist_id, track_ids)
+        except spotipy.client.SpotifyException:
+            pass
+
+
+def user_playlist_create(sp,
+                         username,
+                         playlist_name,
+                         description='',
+                         public=True):
+    data = {
+        'name': playlist_name,
+        'public': public,
+        'description': description
+    }
+    return sp._post("users/%s/playlists" % (username, ), payload=data)['id']
+
+
+def make_spotify_playlist(token,
+                          username,
+                          tracks,
+                          playlist_name='Deej-A.I.'):
+    playlist_id = None
+    if playlist_name != '':
+        sp = spotipy.Spotify(token)
+        if sp is not None:
+            try:
+                playlists = sp.user_playlists(username)
+                if playlists is not None:
+                    playlist_ids = [
+                        playlist['id'] for playlist in playlists['items']
+                        if playlist['name'] == playlist_name
+                    ]
+                    if len(playlist_ids) > 0:
+                        playlist_id = playlist_ids[0]
+                    else:
+                        if 'tracks' in content:
+                            # spotipy create_user_playlist is broken
+                            playlist_id = user_playlist_create(
+                                sp, username, playlist_name,
+                                'Created by Deej-A.I. http://deej-ai.online'
+                            )
+            except:
+                pass
+        if playlist_id is None:
+            print(f'Unable to access playlist {playlist_name} for user {username}')
+            return ''
+        else:
+            print(f'Playlist {playlist_id}')
+            add_tracks_to_playlist(sp, username, playlist_id, tracks, replace=True)
+            return playlist_id
+
+
 def most_similar(mp3tovecs,
                  weights,
                  positive=[],
@@ -166,7 +227,11 @@ def lambda_handler(event, context):
     s3 = boto3.resource('s3')
     bucket = event['Records'][0]['s3']['bucket']['name']
     key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'])
-    response = [[], []]
+    username_and_token = key[key.find('_') + 1: -4]
+    token = username_and_token[username_and_token.find('_') + 1:]
+    username = username_and_token[: username_and_token.find('_')]
+    print(username, token)
+    playlist_id = ''
     
     try:
         mp3tovecs, track_indices, track_ids, tracks = pickle.loads(s3.Bucket('deej-ai.online').Object('stuff.p').get()['Body'].read())
@@ -185,7 +250,9 @@ def lambda_handler(event, context):
                                                           noise=noise)
         response = [[track_ids[_] for _ in playlist_indices], playlist_tracks]
         print(response)
-        
+        playlist_id = make_spotify_playlist(token, username, response[0])
+        s3.Object('deej-ai.online', key).put(Body=playlist_id)
+              
     except Exception as e:
         print(e)
         
@@ -194,7 +261,7 @@ def lambda_handler(event, context):
     
     return {
         "statusCode": 200,
-        "body": json.dumps(response),
+        "body": json.dumps(playlist_id),
     }
 
 
