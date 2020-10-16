@@ -1,4 +1,3 @@
 # sam-deejai
-# sam-deejai
 
 This is an example of using the AWS SAM CLI to create a "serverless" API with a Lambda Function to recommend a similar sounding Spotify song based on a WAV. This uses the models I trained and built in the [Deej-A.I.](https://github.com/teticio/Deej-A.I.) project. This project is more for me to understand the uses and limitations of Lambda functions than to be useful in itself. The main challenge was getting TensorFlow Lite to install on the Lambda Docker image as well as cutting down Librosa to a size that would fit the restrictions imposed by Amazon ("librosalite"). The load time of the model data means that there is an overhead of a couple of seconds to each API call, but you only pay for the data transfer and not the cost of a server running 24/7. Don't expect great results if you record WAVs with a microphone as the model was trained with high quality MP3s.
