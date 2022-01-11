@@ -1,6 +1,6 @@
-requests
-audioread
-numpy
-resampy
-scipy
-spotipy
+requests==2.27.1
+audioread==2.1.9
+numpy==1.18.5
+resampy==0.2.2
+scipy==1.7.3
+spotipy==2.19.0
